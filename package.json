@@ -1,0 +1,27 @@
+{
+  "name": "ai-resource-assignment-report",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "^1.26.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-basic-ssl": "^2.1.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "typescript": "^5.4.5",
+    "vite": "^7.1.11"
+  }
+}

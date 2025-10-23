@@ -1,0 +1,5 @@
+{
+  "name": "AI-Powered Resource Assignment Report",
+  "description": "An application that generates insightful resource assignment charts and analysis from project data. Users can input information manually or by uploading an Excel file to visualize team structures, project workloads, and potential resource risks, all powered by the Gemini API.",
+  "requestFramePermissions": []
+}
