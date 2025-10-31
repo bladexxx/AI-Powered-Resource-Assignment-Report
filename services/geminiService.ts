@@ -151,8 +151,13 @@ const _callAiGateway = async (requestBody: { model: string, [key: string]: any }
       console.error(`[AI Service] Aborting gateway request. ${errorMsg}`);
       throw new Error(errorMsg);
   }
+  const modelInBody = requestBody.model;
+    if (!modelInBody) {
+        throw new Error('The request body for gateway calls must contain a "model" property.');
+    }
+  const fullGatewayUrl = `${gatewayUrl}/${modelInBody}/v1/chat/completions`;
   
-  const fullGatewayUrl = `${gatewayUrl}`; // Gateway URL might be the full endpoint
+  
   console.log(`[AI Service] Sending request to Gateway URL: %c${fullGatewayUrl}`, 'font-weight: bold;');
   console.log(`[AI Service] Sending request to Gateway with body:`, JSON.stringify(requestBody, null, 2));
 
