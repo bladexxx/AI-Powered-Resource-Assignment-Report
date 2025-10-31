@@ -101,7 +101,7 @@ const ProjectChart: React.FC<{ project: ProjectWithTasks }> = ({ project }) => (
                            <ChartNode item={person} />
                         </div>
                     ))}
-                </Node>
+                </ChartNode>
             </ChartBranch>
         ))}
     </ChartNode>
