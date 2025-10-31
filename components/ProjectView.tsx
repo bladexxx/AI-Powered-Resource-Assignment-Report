@@ -18,22 +18,36 @@ const SMALL_PROJECT_TASK_THRESHOLD = 2;
 const ChartNode: React.FC<{
   item: ProjectWithTasks | TaskWithPeople | Person;
   children?: React.ReactNode;
-}> = ({ item, children }) => {
+  childrenLayout?: 'horizontal' | 'vertical';
+}> = ({ item, children, childrenLayout = 'horizontal' }) => {
   const getIcon = () => {
     if ('projectId' in item) return <TaskIcon className="w-5 h-5 text-blue-300" />;
     if ('tasks' in item) return <ProjectIcon className="w-5 h-5 text-cyan-300" />;
     return <PeopleIcon className="w-5 h-5 text-gray-300" />;
   };
+  
+  const isTask = 'projectId' in item;
+
+  const cardClasses = `bg-gray-700 p-2 rounded-lg shadow-lg z-10 ${
+    isTask ? 'w-36' : 'min-w-[140px]' // Fixed width for tasks to allow wrapping
+  }`;
+  const textClasses = `font-medium text-sm ${isTask ? 'break-words' : ''}`; // Word wrapping for tasks
 
   const hasChildren = ('tasks' in item && item.tasks.length > 0) || ('people' in item && item.people.length > 0);
+  
+  const childrenContainerClasses = `flex justify-center ${
+    childrenLayout === 'vertical'
+      ? 'flex-col gap-y-10 items-center' // Vertical for people
+      : 'gap-x-6 gap-y-10 flex-wrap' // Horizontal for tasks
+  }`;
 
   return (
     <div className="flex flex-col items-center text-center">
       {/* Node Card */}
-      <div className="bg-gray-700 p-2 rounded-lg shadow-lg min-w-[140px] z-10">
+      <div className={cardClasses}>
         <div className="flex items-center justify-center gap-2">
           {getIcon()}
-          <span className="font-medium text-sm">{item.name}</span>
+          <span className={textClasses}>{item.name}</span>
         </div>
       </div>
       {/* Children Container */}
@@ -41,7 +55,7 @@ const ChartNode: React.FC<{
         <div className="mt-6 relative">
           {/* Vertical line from parent */}
           <div className="absolute top-[-1.5rem] left-1/2 w-0.5 h-6 bg-gray-600"></div>
-          <div className="flex gap-x-6 gap-y-10 flex-wrap justify-center">
+          <div className={childrenContainerClasses}>
             {children}
           </div>
         </div>
@@ -63,17 +77,18 @@ const ChartBranch: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 }
 
 const ProjectChart: React.FC<{ project: ProjectWithTasks }> = ({ project }) => (
-    <ChartNode item={project}>
+    <ChartNode item={project} childrenLayout="horizontal">
         {project.tasks.map(task => (
-        <ChartBranch key={task.id}>
-            <ChartNode item={task}>
-            {task.people.map(person => (
-                <ChartBranch key={person.id}>
-                <ChartNode item={person} />
-                </ChartBranch>
-            ))}
-            </ChartNode>
-        </ChartBranch>
+            <ChartBranch key={task.id}>
+                <ChartNode item={task} childrenLayout="vertical">
+                    {task.people.map(person => (
+                        <div key={person.id} className="relative flex flex-col items-center">
+                           <div className="absolute top-[-1.5rem] left-1/2 w-0.5 h-6 bg-gray-600"></div>
+                           <ChartNode item={person} />
+                        </div>
+                    ))}
+                </Node>
+            </ChartBranch>
         ))}
     </ChartNode>
 );
@@ -202,21 +217,21 @@ export const ProjectView: React.FC<{ data: StructuredData }> = ({ data }) => {
         </div>
       </div>
       <div className="overflow-x-auto p-4">
-        <div className="flex flex-col gap-12 items-center">
+        <div className="flex flex-row flex-wrap justify-center items-start gap-x-12 gap-y-16">
             {largeProjects.map(project => (
                 <ProjectChart key={project.id} project={project} />
             ))}
-             {smallProjects.length > 0 && (
-                <div className="w-full border-2 border-dashed border-gray-600 rounded-xl p-6 mt-4">
-                    <h4 className="text-lg font-semibold text-center mb-10 text-gray-400">Small Projects</h4>
-                    <div className="flex flex-wrap justify-center gap-x-8 gap-y-16">
-                        {smallProjects.map(project => (
-                            <ProjectChart key={project.id} project={project} />
-                        ))}
-                    </div>
-                </div>
-            )}
         </div>
+        {smallProjects.length > 0 && (
+            <div className="w-full border-2 border-dashed border-gray-600 rounded-xl p-6 mt-16">
+                <h4 className="text-lg font-semibold text-center mb-10 text-gray-400">Small Projects</h4>
+                <div className="flex flex-wrap justify-center items-start gap-x-8 gap-y-16">
+                    {smallProjects.map(project => (
+                        <ProjectChart key={project.id} project={project} />
+                    ))}
+                </div>
+            </div>
+        )}
       </div>
     </div>
   );

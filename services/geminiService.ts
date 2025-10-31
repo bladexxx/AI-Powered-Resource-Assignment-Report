@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { StructuredData } from '../types';
 
@@ -58,23 +59,30 @@ const schema: any = {
       items: {
         type: Type.OBJECT,
         properties: {
-          id: { type: Type.STRING, description: "Unique ID for the team, e.g., 'team-alpha'" },
-          name: { type: Type.STRING, description: "Name of the team, e.g., 'Alpha'" },
+          id: { type: Type.STRING, description: "Unique ID for the team, e.g., 'team-engineering'" },
+          name: { type: Type.STRING, description: "Name of the team, e.g., 'Engineering'" },
+          leaderId: { type: Type.STRING, description: "The ID of the person who is the leader of this team." },
         },
         required: ["id", "name"]
       },
     },
     people: {
       type: Type.ARRAY,
-      description: "List of all people.",
+      description: "List of all people, including their roles, teams, and reporting structure.",
       items: {
         type: Type.OBJECT,
         properties: {
-          id: { type: Type.STRING, description: "Unique ID for the person, e.g., 'person-john'" },
-          name: { type: Type.STRING, description: "Name of the person, e.g., 'John'" },
-          teamId: { type: Type.STRING, description: "ID of the team this person belongs to." },
+          id: { type: Type.STRING, description: "Unique ID for the person, e.g., 'person-alice'" },
+          name: { type: Type.STRING, description: "Name of the person, e.g., 'Alice'" },
+          teamIds: { 
+            type: Type.ARRAY,
+            description: "An array of team IDs this person belongs to. A person can be in multiple teams.",
+            items: { type: Type.STRING }
+          },
+          role: { type: Type.STRING, description: "The person's role or title, e.g., 'Department Manager', 'Team Leader'." },
+          managerId: { type: Type.STRING, description: "The ID of the person's manager. Omit if they are a top-level leader/department manager." },
         },
-        required: ["id", "name", "teamId"]
+        required: ["id", "name", "teamIds"]
       },
     },
     projects: {
@@ -83,8 +91,9 @@ const schema: any = {
       items: {
         type: Type.OBJECT,
         properties: {
-          id: { type: Type.STRING, description: "Unique ID for the project, e.g., 'proj-x'" },
-          name: { type: Type.STRING, description: "Name of the project, e.g., 'Project X'" },
+          id: { type: Type.STRING, description: "Unique ID for the project, e.g., 'proj-website'" },
+          name: { type: Type.STRING, description: "Name of the project, e.g., 'New Website'" },
+          projectManagerId: { type: Type.STRING, description: "The ID of the person who is the manager of this project." },
         },
         required: ["id", "name"]
       },
@@ -95,11 +104,24 @@ const schema: any = {
       items: {
         type: Type.OBJECT,
         properties: {
-          id: { type: Type.STRING, description: "Unique ID for the task, e.g., 'task-1'" },
-          name: { type: Type.STRING, description: "Name of the task, e.g., 'Design UI'" },
+          id: { type: Type.STRING, description: "Unique ID for the task, e.g., 'task-backend'" },
+          name: { type: Type.STRING, description: "Name of the task, e.g., 'Backend Development'" },
           projectId: { type: Type.STRING, description: "ID of the project this task belongs to." },
+          status: { 
+            type: Type.STRING,
+            description: "The current status of the task.",
+            enum: ['In-progress', 'Done', 'On-hold', 'Cancelled']
+          },
+          progress: {
+            type: Type.NUMBER,
+            description: "The completion progress of the task, from 0 to 100."
+          },
+          eta: {
+            type: Type.STRING,
+            description: "The estimated completion date for the task, in 'YYYY-MM-DD' format."
+          },
         },
-        required: ["id", "name", "projectId"]
+        required: ["id", "name", "projectId", "status", "progress", "eta"]
       },
     },
     assignments: {
@@ -158,7 +180,7 @@ const _callAiGateway = async (requestBody: { model: string, [key: string]: any }
 
 
 export const processDataWithGemini = async (text: string): Promise<StructuredData> => {
-  const prompt = `Analyze the following resource assignment data and structure it into a single JSON object. Ensure all IDs are unique and descriptive (e.g., 'team-alpha', 'person-john', 'proj-x', 'task-1'). Also, provide a resource risk analysis. The JSON object must conform to this schema: ${JSON.stringify(schema)}\n\nData:\n${text}`;
+  const prompt = `Analyze the following resource assignment data and structure it into a single JSON object. Ensure all IDs are unique and descriptive (e.g., 'team-alpha', 'person-john', 'proj-x', 'task-1'). A person can belong to multiple teams, so 'teamIds' must be an array. Identify team leaders and department managers, populating 'leaderId', 'role', and 'managerId' fields correctly. A department manager will not have a 'managerId'. For each project, identify a suitable project manager and assign their ID to 'projectManagerId'. For each task, infer a status (defaulting to 'In-progress'), a progress percentage (defaulting to 0), and an estimated completion date (ETA) in 'YYYY-MM-DD' format. Also, provide a resource risk analysis. The JSON object must conform to this schema: ${JSON.stringify(schema)}\n\nData:\n${text}`;
   
   if (aiProvider === 'GATEWAY') {
     const modelToUse = gatewayModel || GEMINI_MODEL;
@@ -175,7 +197,9 @@ export const processDataWithGemini = async (text: string): Promise<StructuredDat
         
         if (data.choices && data.choices[0] && data.choices[0].message && typeof data.choices[0].message.content === 'string') {
             const jsonString = data.choices[0].message.content.trim();
-            return JSON.parse(jsonString) as StructuredData;
+            // Clean the response: Gemini sometimes wraps the JSON in ```json ... ```
+            const cleanedJsonString = jsonString.replace(/^```json\s*|```$/g, '');
+            return JSON.parse(cleanedJsonString) as StructuredData;
         }
         
         throw new Error('The AI Gateway response was successful but did not contain the expected content in "choices[0].message.content".');
@@ -197,7 +221,7 @@ export const processDataWithGemini = async (text: string): Promise<StructuredDat
       const ai = new GoogleGenAI({ apiKey: geminiApiKey });
       const response = await ai.models.generateContent({
         model: GEMINI_MODEL,
-        contents: `Analyze the following resource assignment data and structure it according to the provided schema. Ensure all IDs are unique and descriptive (e.g., 'team-alpha', 'person-john', 'proj-x', 'task-1'). Also, provide a resource risk analysis.\n\nData:\n${text}`,
+        contents: prompt,
         config: {
           responseMimeType: "application/json",
           responseSchema: schema,

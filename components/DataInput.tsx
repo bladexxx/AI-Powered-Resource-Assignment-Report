@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { parseExcelToString } from '../services/excelParser';
 import { FileIcon, UploadIcon } from './IconComponents';
@@ -9,17 +10,34 @@ interface DataInputProps {
 }
 
 const defaultExample = `
-Team: Engineering - Members: Alice, Bob
-Team: Design - Members: Carol
+// Define People and their main roles. Alice is the top manager.
+Alice (Department Manager)
+Bob (Team Leader)
+Eve (Engineer)
+Carol (Designer)
+Dave (Engineer)
 
-Project: New Website - Tasks: UI/UX Design, Backend Development, Frontend Development
-Project: Mobile App - Tasks: iOS App, Android App
+// Define Teams and their leaders
+Team Engineering: Leader is Bob. Members are Eve, Dave.
+Team Design: Leader is Carol. Members are Dave.
+// Note: Dave is in both Engineering and Design teams.
 
-Assignments:
+// Define Reporting Structure
+- Bob reports to Alice.
+- Carol reports to Alice.
+- Eve reports to Bob.
+- Dave reports to Bob.
+
+// Define Projects and Tasks
+Project "New Website": Tasks are UI/UX Design, Backend Development, Frontend Development.
+Project "Mobile App": Tasks are iOS App, Android App.
+
+// Assign people to tasks
 - Carol is assigned to UI/UX Design.
-- Alice is assigned to Backend Development and iOS App.
+- Alice is assigned to Backend Development.
 - Bob is assigned to Frontend Development and Android App.
-- Bob is also assigned to UI/UX Design.
+- Eve is assigned to Backend Development.
+- Dave is assigned to iOS App and Frontend Development.
 `.trim();
 
 

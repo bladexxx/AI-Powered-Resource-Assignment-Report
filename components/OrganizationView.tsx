@@ -1,36 +1,43 @@
 import React, { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { StructuredData, Project, Person, Team, Task } from '../types';
+import { StructuredData, Project, Person, Team } from '../types';
 import { TeamIcon, PeopleIcon, ProjectIcon, DownloadIcon, ImageIcon } from './IconComponents';
 import { PrintableOrganizationView } from './PrintableOrganizationView';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-interface PersonWithProjects extends Person {
-    projects: Project[];
-}
-interface TeamWithMembers extends Team {
-    members: PersonWithProjects[];
-}
+// --- TYPE DEFINITIONS ---
+type PersonWithProjects = Person & { projects: Project[] };
+type TeamWithMembers = Team & { leader?: PersonWithProjects; members: PersonWithProjects[] };
+type ManagerWithTeams = {
+    manager: PersonWithProjects;
+    teams: TeamWithMembers[];
+};
 
+// --- CHART NODE COMPONENTS ---
 const ChartNode: React.FC<{
   item: TeamWithMembers | PersonWithProjects | Project;
   children?: React.ReactNode;
 }> = ({ item, children }) => {
     const getIcon = () => {
-        if ('members' in item) return <TeamIcon className="w-5 h-5 text-cyan-300" />;
-        if ('projects' in item) return <PeopleIcon className="w-5 h-5 text-blue-300" />;
+        if ('leader' in item) return <TeamIcon className="w-5 h-5 text-cyan-300" />;
+        if ('teamIds' in item) return <PeopleIcon className="w-5 h-5 text-blue-300" />;
         return <ProjectIcon className="w-5 h-5 text-gray-300" />;
     };
   
-    const hasChildren = ('members' in item && item.members.length > 0) || ('projects' in item && item.projects.length > 0);
+    const hasChildren = React.Children.count(children) > 0;
+
+    const roleText = 'role' in item && item.role ? `(${item.role})` : '';
 
     return (
         <div className="flex flex-col items-center text-center">
           <div className="bg-gray-700 p-2 rounded-lg shadow-lg min-w-[140px] z-10">
             <div className="flex items-center justify-center gap-2">
               {getIcon()}
-              <span className="font-medium text-sm">{item.name}</span>
+              <div className="flex flex-col items-center">
+                 <span className="font-medium text-sm">{item.name}</span>
+                 {roleText && <span className="text-xs text-gray-400">{roleText}</span>}
+              </div>
             </div>
           </div>
           {hasChildren && (
@@ -55,19 +62,77 @@ const ChartBranch: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     );
 }
 
-const OrganizationChart: React.FC<{ treeData: TeamWithMembers[] }> = ({ treeData }) => (
+const PersonBranch: React.FC<{ person: PersonWithProjects; children?: React.ReactNode }> = ({ person, children }) => {
+    const hasProjects = person.projects.length > 0;
+    const hasChildren = React.Children.count(children) > 0;
+    const roleText = person.role ? `(${person.role})` : '';
+  
+    return (
+      <ChartBranch>
+        <div className="flex flex-col items-center text-center">
+          {/* Person Node Card */}
+          <div className="bg-gray-700 p-2 rounded-lg shadow-lg min-w-[140px] z-10">
+            <div className="flex items-center justify-center gap-2">
+              <PeopleIcon className="w-5 h-5 text-blue-300" />
+              <div className="flex flex-col items-center">
+                <span className="font-medium text-sm">{person.name}</span>
+                {roleText && <span className="text-xs text-gray-400">{roleText}</span>}
+              </div>
+            </div>
+          </div>
+          
+          {/* Container for children (other people) OR projects */}
+          {(hasChildren || hasProjects) && (
+            <div className="mt-6 relative">
+              <div className="absolute top-[-1.5rem] left-1/2 w-0.5 h-6 bg-gray-600"></div>
+              
+              {hasChildren ? (
+                // If there are children (members), render them horizontally
+                <div className="flex gap-x-6 gap-y-10 flex-wrap justify-center">
+                    {children}
+                </div>
+              ) : (
+                // Otherwise, render projects vertically
+                <div className="flex flex-col items-center gap-y-10">
+                  {person.projects.map(project => (
+                    <div key={project.id} className="relative flex flex-col items-center">
+                      <div className="absolute top-[-1.5rem] left-1/2 w-0.5 h-6 bg-gray-600"></div>
+                      <div className="bg-gray-700 p-2 rounded-lg shadow-lg min-w-[140px] z-10">
+                        <div className="flex items-center justify-center gap-2">
+                          <ProjectIcon className="w-5 h-5 text-gray-300" />
+                          <span className="font-medium text-sm">{project.name}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </ChartBranch>
+    );
+  };
+
+const OrganizationChart: React.FC<{ treeData: ManagerWithTeams[] }> = ({ treeData }) => (
     <div className="flex justify-center">
         <div className="flex flex-col gap-12 items-center">
-            {treeData.map(team => (
-                <ChartNode key={team.id} item={team}>
-                    {team.members.map(person => (
-                        <ChartBranch key={person.id}>
-                            <ChartNode item={person}>
-                                {person.projects.map(project => (
-                                    <ChartBranch key={project.id}>
-                                        <ChartNode item={project} />
-                                    </ChartBranch>
-                                ))}
+            {treeData.map(({ manager, teams }) => (
+                <ChartNode key={manager.id} item={manager}>
+                    {teams.map(team => (
+                        <ChartBranch key={team.id}>
+                            <ChartNode item={team}>
+                                {team.leader ? (
+                                    <PersonBranch key={team.leader.id} person={team.leader}>
+                                        {team.members.map(member => (
+                                            <PersonBranch key={`${team.id}-${member.id}`} person={member} />
+                                        ))}
+                                    </PersonBranch>
+                                ) : (
+                                    team.members.map(member => (
+                                        <PersonBranch key={`${team.id}-${member.id}`} person={member} />
+                                    ))
+                                )}
                             </ChartNode>
                         </ChartBranch>
                     ))}
@@ -77,33 +142,59 @@ const OrganizationChart: React.FC<{ treeData: TeamWithMembers[] }> = ({ treeData
     </div>
 );
   
+// --- MAIN COMPONENT ---
 export const OrganizationView: React.FC<{ data: StructuredData }> = ({ data }) => {
     const [isExporting, setIsExporting] = useState(false);
     const [isSavingImage, setIsSavingImage] = useState(false);
 
-    const treeData = useMemo<TeamWithMembers[]>(() => {
-        return data.teams.map(team => {
+    const hierarchyData = useMemo<ManagerWithTeams[]>(() => {
+        // 1. Augment people with their projects
+        const peopleWithProjects = new Map<string, PersonWithProjects>();
+        data.people.forEach(person => {
+            const projectIds = new Set<string>();
+            data.assignments
+                .filter(a => a.personId === person.id)
+                .forEach(a => {
+                    const task = data.tasks.find(t => t.id === a.taskId);
+                    if (task) projectIds.add(task.projectId);
+                });
+            const projects = Array.from(projectIds)
+                .map(id => data.projects.find(p => p.id === id)!)
+                .filter(Boolean)
+                .sort((a, b) => a.name.localeCompare(b.name));
+            peopleWithProjects.set(person.id, { ...person, projects });
+        });
+    
+        // 2. Structure teams with members (leader first)
+        const teamsWithMembers = data.teams.map(team => {
+            const leader = team.leaderId ? peopleWithProjects.get(team.leaderId) : undefined;
             const members = data.people
-                .filter(person => person.teamId === team.id)
-                .map(person => {
-                    const personAssignments = data.assignments.filter(a => a.personId === person.id);
-                    const projectIds = new Set<string>();
-                    personAssignments.forEach(pa => {
-                        const task = data.tasks.find(t => t.id === pa.taskId);
-                        if (task) {
-                            projectIds.add(task.projectId);
-                        }
-                    });
-
-                    const projects = Array.from(projectIds)
-                        .map(projectId => data.projects.find(p => p.id === projectId)!)
-                        .filter(p => p)
-                        .sort((a,b) => a.name.localeCompare(b.name));
-                    
-                    return { ...person, projects };
-                }).sort((a,b) => a.name.localeCompare(b.name));
-            return { ...team, members };
-        }).sort((a,b) => a.name.localeCompare(b.name));
+                .filter(p => p.teamIds.includes(team.id) && p.id !== team.leaderId)
+                .map(p => peopleWithProjects.get(p.id)!)
+                .filter(Boolean)
+                .sort((a, b) => a.name.localeCompare(b.name));
+            
+            return { ...team, leader, members };
+        });
+    
+        // 3. Identify department managers (no managerId) and build the final hierarchy
+        const departmentManagers = data.people
+            .filter(p => !p.managerId)
+            .map(p => peopleWithProjects.get(p.id)!);
+    
+        const finalHierarchy = departmentManagers.map(manager => {
+            // A team belongs to a manager if its leader reports to them, OR if the manager is the leader.
+            const managedTeams = teamsWithMembers.filter(team => 
+                team.leader?.managerId === manager.id || team.leader?.id === manager.id
+            );
+    
+            return {
+                manager,
+                teams: managedTeams.sort((a,b) => a.name.localeCompare(b.name))
+            };
+        });
+    
+        return finalHierarchy.sort((a,b) => a.manager.name.localeCompare(b.manager.name));
     }, [data]);
     
      const captureChart = async (): Promise<HTMLCanvasElement | null> => {
@@ -114,7 +205,7 @@ export const OrganizationView: React.FC<{ data: StructuredData }> = ({ data }) =
         document.body.appendChild(tempContainer);
         
         const root = ReactDOM.createRoot(tempContainer);
-        root.render(<PrintableOrganizationView treeData={treeData} />);
+        root.render(<PrintableOrganizationView treeData={hierarchyData} />);
     
         await new Promise(resolve => setTimeout(resolve, 500));
         
@@ -198,7 +289,7 @@ export const OrganizationView: React.FC<{ data: StructuredData }> = ({ data }) =
             </div>
     
             <div className="overflow-x-auto p-4">
-                <OrganizationChart treeData={treeData} />
+                <OrganizationChart treeData={hierarchyData} />
             </div>
         </div>
     );
